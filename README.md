@@ -1,3 +1,27 @@
+# Notice
+
+This repo is an archive from another private repo which originally store this project.
+
+Group members:
+  - Hoang Thai Phuc: s3978081
+  - Do Tung Lam: s3963286
+  - Loc Truong: s3965528
+  - An Nguyen: s3938278
+
+Github classroom team name: pall
+url link: https://github.com/RMIT-Vietnam-Teaching/cosc2767-assignment-2-group-2024c-pall
+
+Youtube video submission link:
+https://www.youtube.com/watch?v=-YLH_jyVaKM
+
+---
+
+# Project Diagram
+
+<p align="center">
+    <img src="https://github.com/an6122003/COSC2767-CICD-Pipeline-for-MERN-E-Commerce-Website/blob/main/application-diagram.jpg" width=900>
+</p>
+
 <p align="center">
     <img src="https://i.imgur.com/Om7ww0e.png" width=900>
 </p>
