@@ -1,0 +1,33 @@
+version: "3.0"
+
+services:
+  rmit-store-client-service:
+    build:
+      context: ./client
+      dockerfile: Dockerfile.dev
+    depends_on:
+      - rmit-store-server-service
+    ports:
+      - "80:80"
+
+  rmit-store-server-service:
+    image: locoioioi/be-mern-server:latest
+    ports:
+      - "3000:3000"
+
+  # mongodb:
+  #   image: mongo:6
+  #   container_name: mongodb
+  #   ports:
+  #     - "27017:27017"
+  #   environment:
+  #     MONGO_INITDB_ROOT_USERNAME: root
+  #     MONGO_INITDB_ROOT_PASSWORD: admin@admin
+  #   restart: always
+  #   healthcheck:
+  #     test: ["CMD", "mongo", "--eval", "db.runCommand({ ping: 1 })"]
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 5
+  #   networks:
+  #     - rmit-store-network

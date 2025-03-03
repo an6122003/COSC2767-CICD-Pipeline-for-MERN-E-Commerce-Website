@@ -1,0 +1,25 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mongodb-exporter
+  namespace: monitoring
+  labels:
+    app: mongodb-exporter
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mongodb-exporter
+  template:
+    metadata:
+      labels:
+        app: mongodb-exporter
+    spec:
+      containers:
+        - name: mongodb-exporter
+          image: percona/mongodb_exporter:0.43.1
+          ports:
+            - containerPort: 9216
+          env:
+            - name: MONGODB_URI
+              value: "mongodb+srv://admin:123@cluster0.cefrs.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"

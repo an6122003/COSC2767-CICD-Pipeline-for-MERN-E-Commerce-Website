@@ -1,0 +1,17 @@
+# Cypress Test Environment
+FROM cypress/included:13.17.0
+
+# Set working directory
+WORKDIR /e2e
+
+COPY package.json .
+
+# Copy the Cypress tests into the container
+COPY ./cypress ./cypress
+COPY ./cypress.config.js ./cypress.config.js
+
+# Install dependencies
+RUN npm install
+
+# Command to run tests
+CMD ["npx", "cypress", "run", "--reporter", "junit", "--reporter-options", "mochaFile=/e2e/results/test-results.xml"]

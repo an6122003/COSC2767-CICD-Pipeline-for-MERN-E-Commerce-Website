@@ -1,0 +1,103 @@
+pipeline {
+    agent any
+    tools {
+        nodejs "NodeJS"
+        dockerTool 'Docker'
+    }
+
+    environment {
+        IMAGE_NAME = 'locoioioi/cosc2767-rmit-store-client'
+        IMAGE_VERSION = 'latest'
+        STABLE_TAG = 'stable'
+        EKS_IP='3.227.225.141'
+    }
+
+    stages {
+        stage('Checkout Code') {
+            steps {
+                git branch: 'main', credentialsId: 'ssh-github-key', url: 'git@github.com:RMIT-Vietnam-Teaching/cosc2767-assignment-2-group-2024c-pall.git'
+            }
+        }
+
+        stage('Install Dependencies') {
+            steps {
+                dir('client') {
+                    sh 'npm ci'
+                }
+            }
+        }
+
+        stage('Build React App') {
+            steps {
+                dir('client') {
+                    sh 'npm run build'
+                }
+            }
+        }
+
+        stage('Archive Artifacts') {
+            steps {
+                archiveArtifacts artifacts: 'client/dist/**/*', allowEmptyArchive: false
+            }
+        }
+
+        stage("Test Docker") {
+            steps {
+                sh 'docker --version'
+            }
+        }
+
+        stage('Manage Docker Image') {
+            steps {
+                dir('client') {
+                    script {
+                        // Login to Docker registry
+                        docker.withRegistry('https://index.docker.io/v1/', 'locoioioi-dockerhub') {
+                            // Pull the existing latest image
+                            sh "docker pull ${IMAGE_NAME}:${IMAGE_VERSION}"
+
+                            // Tag the pulled image as 'stable'
+                            sh "docker tag ${IMAGE_NAME}:${IMAGE_VERSION} ${IMAGE_NAME}:${STABLE_TAG}"
+
+                            // Push the 'stable' image to Docker Hub
+                            sh "docker push ${IMAGE_NAME}:${STABLE_TAG}"
+
+                            // Build a new image tagged as 'latest'
+                            def customImage = docker.build("${IMAGE_NAME}:${IMAGE_VERSION}")
+
+                            // Push the new 'latest' image to Docker Hub
+                            customImage.push()
+                        }
+                    }
+                }
+            }
+        }
+
+        stage('Deploy to Kubernetes') {
+            steps {
+                script {
+                    withCredentials([
+                        string(credentialsId: 'eks-cluster-ip', variable: 'EKS_IP'),
+                        sshUserPrivateKey(credentialsId: 'ec2-ssh-vockey', keyFileVariable: 'SSH_KEY')
+                    ]) {
+                        sh """
+                        ssh -i \$SSH_KEY -o StrictHostKeyChecking=no ec2-user@\$EKS_IP \
+                        "sudo -i sh -c 'whoami && kubectl rollout restart deployment rmit-store-client-canary'"
+                        """
+                    }
+                }
+            }
+        }
+    }
+
+    post {
+        success {
+            cleanWs()
+            echo 'React.js build and Docker image management completed successfully!'
+        }
+        failure {
+            cleanWs()
+            echo 'Pipeline failed. Check the logs for more details.'
+        }
+    }
+}

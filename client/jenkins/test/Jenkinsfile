@@ -1,0 +1,172 @@
+pipeline {
+    agent any
+
+    environment {
+        STACK_NAME = "test-env-mern-deployment-stack"
+        INSTANCE_IP = ""
+    }
+
+    parameters {
+        string(defaultValue: 'main', description: 'Branch to build', name: 'branch')
+    }
+
+    stages {
+        stage('Checkout Code') {
+            steps {
+                script {
+                    checkout([
+                        $class: 'GitSCM',
+                        branches: [[name: "refs/heads/${params.branch}"]],
+                        userRemoteConfigs: [[
+                            credentialsId: 'ssh-github-key',
+                            url: 'git@github.com:RMIT-Vietnam-Teaching/cosc2767-assignment-2-group-2024c-pall.git'
+                        ]]
+                    ])
+                }
+            }
+        }
+
+        stage('Verify Source Code') {
+            steps {
+                script {
+                    sh "ls -la"
+                    sh "mkdir -p cypress-reports"
+                }
+            }
+        }
+
+        stage('Trigger CloudFormation') {
+            steps {
+                script {
+                    sh """
+                    aws cloudformation deploy \
+                        --stack-name ${STACK_NAME} \
+                        --template-file cloudformation/create-test-server-template.yaml \
+                        --capabilities CAPABILITY_NAMED_IAM
+                    aws cloudformation wait stack-create-complete --stack-name ${STACK_NAME}
+                    """
+                }
+            }
+        }
+
+        stage('Retrieve Instance IP') {
+            steps {
+                script {
+                    INSTANCE_IP = sh(
+                        script: """
+                        aws cloudformation describe-stacks \
+                            --stack-name ${STACK_NAME} \
+                            --query "Stacks[0].Outputs[?OutputKey=='PublicIP'].OutputValue" \
+                            --output text
+                        """,
+                        returnStdout: true
+                    ).trim()
+                    echo "EC2 Instance IP: ${INSTANCE_IP}"
+                }
+            }
+        }
+
+        stage('Install Docker & Dependencies') {
+            steps {
+                withCredentials([sshUserPrivateKey(credentialsId: 'ec2-ssh-vockey', keyFileVariable: 'SSH_KEY')]) {
+                    sh """
+                    ssh -i \$SSH_KEY -o StrictHostKeyChecking=no ec2-user@${INSTANCE_IP} \
+                    "sudo yum install -y docker git nmap-ncat && \
+                     sudo systemctl start docker && \
+                     sudo systemctl enable docker && \
+                     sudo usermod -aG docker ec2-user && \
+                     docker --version && \
+                     sudo curl -L https://github.com/docker/compose/releases/download/1.22.0/docker-compose-\$(uname -s)-\$(uname -m) -o /usr/local/bin/docker-compose && \
+                     sudo chmod +x /usr/local/bin/docker-compose && \
+                     docker-compose version"
+                    """
+                }
+            }
+        }
+
+        stage('Copy Source Code to EC2') {
+            steps {
+                withCredentials([sshUserPrivateKey(credentialsId: 'ec2-ssh-vockey', keyFileVariable: 'SSH_KEY')]) {
+                    retry(3) {
+                        sh """
+                        scp -i \$SSH_KEY -o StrictHostKeyChecking=no -r . ec2-user@${INSTANCE_IP}:/home/ec2-user/project
+                        """
+                    }
+                }
+            }
+        }
+
+        stage('Deploy Application Using Docker Compose') {
+            steps {
+                withCredentials([sshUserPrivateKey(credentialsId: 'ec2-ssh-vockey', keyFileVariable: 'SSH_KEY')]) {
+                    sh """
+                    ssh -i \$SSH_KEY -o StrictHostKeyChecking=no ec2-user@${INSTANCE_IP} \
+                    "
+                    cd /home/ec2-user/project && \
+                    docker-compose up -d --build && \
+                    echo 'Waiting for containers to become healthy...' && \
+                    for i in {1..10}; do \
+                        docker-compose ps | grep -q 'healthy' && break || sleep 5; \
+                    done || (echo 'Containers failed to become healthy' && exit 1)
+                    "
+                    """
+                }
+            }
+        }
+
+        stage('Run E2E Tests') {
+            steps {
+                withCredentials([sshUserPrivateKey(credentialsId: 'ec2-ssh-vockey', keyFileVariable: 'SSH_KEY')]) {
+                    sh """
+                    ssh -i \$SSH_KEY -o StrictHostKeyChecking=no ec2-user@${INSTANCE_IP} \
+                    "
+                    sudo docker system prune -af && \
+                    docker run --name e2e-container -e TEST_URL=http://rmit-store-client-service \
+                        --network project_default locoioioi/e2e && \
+                    docker cp e2e-container:/e2e/results /home/ec2-user/cypress-reports
+                    "
+                    """
+                }
+            }
+        }
+
+        stage('Retrieve Test Results') {
+            steps {
+                withCredentials([sshUserPrivateKey(credentialsId: 'ec2-ssh-vockey', keyFileVariable: 'SSH_KEY')]) {
+                    sh """
+                    scp -i \$SSH_KEY -o StrictHostKeyChecking=no ec2-user@${INSTANCE_IP}:/home/ec2-user/cypress-reports/test-results*.xml ./cypress-reports/
+                    """
+                }
+            }
+        }
+
+        stage('Analyze Test Results') {
+            steps {
+                junit 'cypress-reports/test-results*.xml'
+            }
+        }
+    }
+
+    post {
+        success {
+            echo 'Testing passed!'
+        }
+        failure {
+            echo 'Testing failed!'
+        }
+        always {
+            echo 'Cleaning up resources...'
+            script {
+                try {
+                    sh """
+                    aws cloudformation delete-stack --stack-name ${STACK_NAME}
+                    """
+                    echo 'CloudFormation stack deletion triggered.'
+                } catch (Exception e) {
+                    echo "Failed to delete CloudFormation stack: ${e.message}"
+                }
+            }
+            echo 'Job finished!'
+        }
+    }
+}

@@ -1,0 +1,19 @@
+# apiVersion: monitoring.coreos.com/v1
+# kind: PodMonitor
+# metadata:
+#   name: server-pod-monitor
+#   namespace: monitoring
+#   labels:
+#     team: server
+#     prometheus: main
+# spec:
+#   namespaceSelector:
+#     matchNames:
+#       - default
+#   selector:
+#     matchLabels:
+#       app: rmit-store-server
+#       version: stable
+#   podMetricsEndpoints:
+#     - port: 3100
+#       path: metrics

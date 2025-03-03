@@ -1,0 +1,112 @@
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: grafana-pvc
+  namespace: monitoring
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+  # storageClassName: standard
+  storageClassName: manual
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: grafana
+  name: grafana
+  namespace: monitoring
+spec:
+  selector:
+    matchLabels:
+      app: grafana
+  template:
+    metadata:
+      labels:
+        app: grafana
+    spec:
+      securityContext:
+        fsGroup: 472
+        supplementalGroups:
+          - 0
+      initContainers:
+      - name: setup-grafana-dir
+        image: alpine:3.21.2
+        command: ["sh", "-c", "mkdir -p /var/lib/grafana && chmod 775 /var/lib/grafana"]
+        volumeMounts:
+        - mountPath: /var/lib/grafana
+          name: grafana-pv
+      containers:
+        - name: grafana
+          env:
+          - name: GF_SMTP_ENABLED
+            value: "true"
+          - name: GF_SMTP_HOST
+            value: "smtp.gmail.com:587"
+          - name: GF_SMTP_USER
+            value: "dtlamdevil@gmail.com"
+          - name: GF_SMTP_PASSWORD
+            value: "cuty rniy libv brdy"
+          - name: GF_SMTP_FROM_ADDRESS
+            value: "grafana@gmail.com"
+          - name: GF_SMTP_FROM_NAME
+            value: "Grafana"
+          - name: GF_SMTP_SKIP_VERIFY
+            value: "true"
+          image: grafana/grafana-enterprise
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 3000
+              name: http-grafana
+              protocol: TCP
+          readinessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /robots.txt
+              port: 3000
+              scheme: HTTP
+            initialDelaySeconds: 10
+            periodSeconds: 30
+            successThreshold: 1
+            timeoutSeconds: 2
+          livenessProbe:
+            failureThreshold: 3
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            successThreshold: 1
+            tcpSocket:
+              port: 3000
+            timeoutSeconds: 1
+          resources:
+            requests:
+              cpu: 250m
+              memory: 750Mi
+          volumeMounts:
+            - mountPath: /var/lib/grafana
+              name: grafana-pv
+      nodeSelector:
+        eks.amazonaws.com/nodegroup: monitoring-group
+        # target: "grafana"
+      volumes:
+        - name: grafana-pv
+          persistentVolumeClaim:
+            claimName: grafana-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: grafana
+  namespace: monitoring
+spec:
+  ports:
+    - port: 3000
+      protocol: TCP
+      targetPort: http-grafana
+  selector:
+    app: grafana
+  sessionAffinity: None
+  type: LoadBalancer

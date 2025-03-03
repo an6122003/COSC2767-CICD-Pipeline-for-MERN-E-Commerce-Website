@@ -1,0 +1,26 @@
+name: Test SSH EKS
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test-ssh-eks:
+    name: Test ssh eks
+    runs-on: ubuntu-latest
+
+    steps:
+      # Setup ssh key
+      - name: Set up SSH Key
+        run: |
+          echo "${{ secrets.EKS_CONTROL_PLANE_SSH_KEY }}" > eks_ssh_key
+          chmod 400 eks_ssh_key
+
+      - name: Execute kubectl command
+        run: |
+          ssh -o StrictHostKeyChecking=no -i eks_ssh_key ec2-user@${{ secrets.EKS_CONTROL_PLANE_IP_ADDRESS }} << 'EOF'
+          sudo su - << 'INNER_EOF'
+          whoami
+          kubectl --version
+          kubectl
+          INNER_EOF
+          EOF

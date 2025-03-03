@@ -1,0 +1,48 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rmit-store-client-canary
+  labels:
+    name: rmit-store-client-canary
+    app: rmit-store-client
+    version: stable
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: rmit-store-client
+      version: stable
+  template:
+    metadata:
+      labels:
+        name: rmit-store-client-canary
+        app: rmit-store-client
+        version: stable
+    spec:
+      containers:
+        - name: rmit-store-client-canary
+          image: locoioioi/cosc2767-rmit-store-client:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 80
+          env:
+            - name: API_URL
+              value: /api
+      nodeSelector:
+        eks.amazonaws.com/nodegroup: client-worker-group
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: rmit-store-client-service
+  labels:
+    name: rmit-store-client-service
+    app: rmit-store-client
+spec:
+  ports:
+    - port: 80
+      targetPort: 80
+  type: LoadBalancer
+  selector:
+    app: rmit-store-client
+

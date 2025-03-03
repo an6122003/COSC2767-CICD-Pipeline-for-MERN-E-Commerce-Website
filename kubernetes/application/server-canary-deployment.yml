@@ -1,0 +1,37 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rmit-store-server-canary
+  labels:
+    name: rmit-store-server-canary
+    app: rmit-store-server
+    version: canary
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/path: "/metrics"
+    prometheus.io/port: "3000"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: rmit-store-server
+      version: canary
+  template:
+    metadata:
+      labels:
+        app: rmit-store-server
+        name: rmit-store-server-canary
+        version: canary
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/path: "/metrics"
+        prometheus.io/port: "3000"
+    spec:
+      containers:
+        - name: rmit-store-server-canary
+          image: locoioioi/be-mern-server:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 3000
+      nodeSelector:
+        eks.amazonaws.com/nodegroup: server-worker-group

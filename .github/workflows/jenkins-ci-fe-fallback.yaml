@@ -1,0 +1,14 @@
+name: Jenkins CI PR FE
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths-ignore:
+      - "client/**"
+
+jobs:
+  build-push-trigger:
+    runs-on: ubuntu-latest
+    steps:
+      - run: 'echo "No build required"'
