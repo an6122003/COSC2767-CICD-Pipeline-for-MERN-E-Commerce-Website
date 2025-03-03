@@ -19,7 +19,7 @@ https://www.youtube.com/watch?v=-YLH_jyVaKM
 # Project Diagram
 
 <p align="center">
-    <img src="https://github.com/an6122003/COSC2767-CICD-Pipeline-for-MERN-E-Commerce-Website/blob/main/application-diagram.jpg" width=900>
+    <img src="https://github.com/an6122003/COSC2767-CICD-Pipeline-for-MERN-E-Commerce-Website/blob/main/blob/application-diagram.jpg" width=900>
 </p>
 
 <p align="center">
